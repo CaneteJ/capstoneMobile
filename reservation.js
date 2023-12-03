@@ -1,28 +1,64 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView } from 'react-native';
-import { useNavigation, useRoute } from '@react-navigation/native'; // Import the useRoute hook as well
-import { db} from './config/firebase';
-import { collection, query, where, getDocs, docs, getDoc, addDoc, deleteDoc, querySnapshot, onSnapshot, doc} from 'firebase/firestore';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import { db } from './config/firebase';
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+  addDoc,
+  deleteDoc,
+  getDocs,
+  updateDoc,
+} from 'firebase/firestore';
 import Swiper from 'react-native-swiper';
 import UserContext from './UserContext';
 import firebase from 'firebase/app';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { Button } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const SLOT_PRICE = 30; // Assuming this is constant
 
-export default function ReservationScreen({ route }) { // 'item' prop is used here
-    const { item } = route.params;
-    const navigation = useNavigation();
-    const { user } = useContext(UserContext);
-    const [email, setEmail] = useState(user?.email || '');
-    const [plateNumber, setPlateNumber] = useState(user?.carPlateNumber || '');
-    const [slotSets, setSlotSets] = useState([]);
-    const [reservedSlots, setReservedSlots] = useState([]);
-    const [selectedSlot, setSelectedSlot] = useState(null);
-    const [isLoading, setIsLoading] = useState(false);
-    const [isSlotReserved, setIsSlotReserved] = useState(false);
+export default function ReservationScreen({ route }) {
+  const { item } = route.params;
+  const navigation = useNavigation();
+  const { user } = useContext(UserContext);
+  const [email, setEmail] = useState(user?.email || '');
+  const [plateNumber, setPlateNumber] = useState(user?.carPlateNumber || '');
+  const [slotSets, setSlotSets] = useState([]);
+  const [reservedSlots, setReservedSlots] = useState([]);
+  const [selectedSlot, setSelectedSlot] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSlotReserved, setIsSlotReserved] = useState(false);
 
+  useEffect(() => {
+    const loadReservedSlots = async () => {
+      try {
+        const storedReservedSlots = await AsyncStorage.getItem('reservedSlots');
+        if (storedReservedSlots) {
+          setReservedSlots(JSON.parse(storedReservedSlots));
+        }
+      } catch (error) {
+        console.error('Error loading reserved slots from AsyncStorage:', error);
+      }
+    };
+
+    loadReservedSlots();
+  }, []);
+
+  useEffect(() => {
+    const saveReservedSlots = async () => {
+      try {
+        await AsyncStorage.setItem('reservedSlots', JSON.stringify(reservedSlots));
+      } catch (error) {
+        console.error('Error saving reserved slots to AsyncStorage:', error);
+      }
+    };
+
+    saveReservedSlots();
+  }, [reservedSlots]);
 
     useEffect(() => {
       if (!user) {
