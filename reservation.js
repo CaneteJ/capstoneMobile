@@ -1,40 +1,38 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView } from 'react-native';
-import { useNavigation, useRoute } from '@react-navigation/native';
 import { db } from './config/firebase';
-import {
-  collection,
-  query,
-  where,
-  onSnapshot,
-  addDoc,
-  deleteDoc,
-  getDocs,
-  updateDoc,
-} from 'firebase/firestore';
-import Swiper from 'react-native-swiper';
-import UserContext from './UserContext';
-import firebase from 'firebase/app';
-import { getAuth, onAuthStateChanged } from 'firebase/auth';
-import { Button } from 'react-native';
+import { collection, addDoc, onSnapshot } from 'firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const SLOT_PRICE = 30; // Assuming this is constant
 
 export default function ReservationScreen({ route }) {
   const { item } = route.params;
-  const navigation = useNavigation();
-  const { user } = useContext(UserContext);
-  const [email, setEmail] = useState(user?.email || '');
-  const [plateNumber, setPlateNumber] = useState(user?.carPlateNumber || '');
+
+  const [user, setUser] = useState(null);
+  const [email, setEmail] = useState('');
+  const [plateNumber, setPlateNumber] = useState('');
   const [slotSets, setSlotSets] = useState([]);
   const [reservedSlots, setReservedSlots] = useState([]);
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isSlotReserved, setIsSlotReserved] = useState(false);
+  const [reservationData, setReservationData] = useState([]);
+  const reservationCollectionRef = collection(db, 'reservations');
 
   useEffect(() => {
-    const loadReservedSlots = async () => {
+    // Load user data and initialize reserved slots from AsyncStorage
+    const loadUserData = async () => {
+      // Load user data (you may need to modify this based on your user context setup)
+      // For example, you might have a function like loadUserData() that fetches user info
+      // from your authentication provider and sets it in state.
+      // Ensure that setUser, setEmail, and setPlateNumber are correctly defined based on your user context.
+      // Example:
+      // const userData = await fetchUserData();
+      // setUser(userData);
+      // setEmail(userData.email);
+      // setPlateNumber(userData.carPlate);
+
+      // Load reserved slots from AsyncStorage
       try {
         const storedReservedSlots = await AsyncStorage.getItem('reservedSlots');
         if (storedReservedSlots) {
@@ -45,7 +43,7 @@ export default function ReservationScreen({ route }) {
       }
     };
 
-    loadReservedSlots();
+    loadUserData();
   }, []);
 
   useEffect(() => {
@@ -119,7 +117,7 @@ export default function ReservationScreen({ route }) {
   
     const processEstablishmentData = (establishmentData) => {
       let newSlotSets = [];
-    
+  
       if (Array.isArray(establishmentData.floorDetails) && establishmentData.floorDetails.length > 0) {
         // Process floor details
         newSlotSets = establishmentData.floorDetails.map(floor => ({
@@ -128,11 +126,11 @@ export default function ReservationScreen({ route }) {
             id: `${floor.floorName}-${i + 1}`,
             floor: floor.floorName,
             slotNumber: i + 1,
-            occupied: false // Default to not occupied
+            occupied: reservationData.some(reservation => reservation.slotId === `${floor.floorName}-${i + 1}`)
           })),
         }));
       }
-    
+  
       if (establishmentData.totalSlots) {
         // Process general parking if totalSlots is available
         const generalParkingSet = {
@@ -141,15 +139,16 @@ export default function ReservationScreen({ route }) {
             id: `General-${i + 1}`,
             floor: 'General',
             slotNumber: i + 1,
-            occupied: false // Default to not occupied
+            occupied: reservationData.some(reservation => reservation.slotId === `General-${i + 1}`)
           })),
         };
-    
+  
         newSlotSets.push(generalParkingSet);
       }
-    
+  
       return newSlotSets;
     };
+  
 
    
 
@@ -264,18 +263,19 @@ export default function ReservationScreen({ route }) {
       slotId: slotId,
       managementName: item.managementName,
       timestamp: new Date(),
-      occupied: true, // Update the occupied field
+      occupied: true,
     };
   
     try {
-      const docRef = await addDoc(collection(db, 'reservations'), reservationData);
-      console.log('Reservation ID: ', docRef.id);
+      // Save reservation data to Firestore
+      await db.collection('reservations').add(reservationData);
   
       setReservedSlots([...reservedSlots, slotId]);
       setSelectedSlot(slotId);
+  
       Alert.alert(
         'Reservation Successful',
-        `Slot ${slotId} reserved successfully! Reservation ID: ${docRef.id}`,
+        `Slot ${slotId} reserved successfully!`,
         [{ text: 'OK', style: 'default' }]
       );
     } catch (error) {
